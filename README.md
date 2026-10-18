@@ -5,7 +5,7 @@
 ![Status](https://img.shields.io/badge/Status-Active-success)
 ![Python](https://img.shields.io/badge/Python-3.10%2B-brightgreen)
 ![Platforms](https://img.shields.io/badge/Platforms-GitHub_|_Instagram-purple)
-![Exports](https://img.shields.io/badge/Exports-Terminal_|_PDF-orange)
+![Exports](https://img.shields.io/badge/Exports-Terminal_|_PDF_|_Excel-orange)
 ![Privacy](https://img.shields.io/badge/Privacy-100%25_Local_&_Zero--Credentials-success)
 ![License](https://img.shields.io/badge/License-GPL_v3.0-lightgrey)
 
@@ -21,7 +21,7 @@ Most "unfollower tracker" apps in mobile stores demand your raw Instagram login 
 
 - 🛡️ **Zero Credential Sharing:** No passwords, no session tokens and zero risk of account strikes. Everything runs locally on your machine.
 - 🕒 **Time-Traveling Snapshots:** It doesn't just identify who isn't following you back today, it maintains an incremental historical ledger to stamp the **exact date they unfollowed you**.
-- 📊 **Executive-Grade Reports:** View results directly in an interactive, color-coded terminal table with [Rich](https://github.com/Textualize/rich) or export publication-ready PDF dossiers.
+- 📊 **Executive-Grade Reports:** View results directly in an interactive, color-coded terminal table with [Rich](https://github.com/Textualize/rich), export publication-ready PDF dossiers or generate styled Excel spreadsheets.
 
 Whether you are auditing your developer network on GitHub or reviewing your personal circle on Instagram, **the mole won't stay hidden for long.**
 
@@ -51,7 +51,7 @@ Whether you are auditing your developer network on GitHub or reviewing your pers
 Who_is_the_mole/
 ├── LICENSE                                     # GNU General Public License v3.0
 ├── README.md                                   # Comprehensive project documentation
-├── requirements.txt                            # Python dependencies (requests, rich, reportlab)
+├── requirements.txt                            # Python dependencies
 ├── snapshots/                                  # Follower snapshots & checkpoint caches
 │   ├── .checkpoints/                           # Pagination recovery cache for GitHub API
 │   ├── platform_username_history.example.json  # Reference snapshot history structure
@@ -68,7 +68,8 @@ Who_is_the_mole/
     │       ├── exporters/                      # Report generation adapters
     │       │   ├── __init__.py
     │       │   ├── terminal.py                 # Rich table terminal renderer
-    │       │   └── pdf.py                      # ReportLab PDF generator with custom styling
+    │       │   ├── pdf.py                      # PDF generator
+    │       │   └── excel.py                    # Excel spreadsheet generator
     │       │ 
     │       └── platforms/                      # Social media checkers
     │           ├── __init__.py
@@ -165,7 +166,10 @@ python3 src/BE/main.py github --username <github_username>
 python3 src/BE/main.py github --username <github_username> --github-token <YOUR_GITHUB_TOKEN>
 
 # 🔹 PDF Report: Save findings to a publication-ready PDF document
-python3 src/BE/main.py github --username <github_username> --output pdf --pdf-name github_moles.pdf
+python3 src/BE/main.py github --username <github_username> --output pdf --file-name github_moles
+
+# 🔹 Excel Report: Save findings to a styled Excel (.xlsx) spreadsheet
+python3 src/BE/main.py github --username <github_username> --output excel --file-name github_moles
 ```
 
 > 💡 **Rate Limit Tip:** GitHub limits anonymous API calls to 60 requests/hour. If you follow more than 60 accounts, passing a free [GitHub Personal Access Token](https://github.com/settings/tokens) via `--github-token` is strongly recommended.
@@ -179,7 +183,10 @@ Inspect your Instagram connections safely using your official local data export 
 python3 src/BE/main.py instagram --path "/path/to/extracted/instagram_export"
 
 # 🔹 PDF Report: Save findings to a publication-ready PDF document
-python3 src/BE/main.py instagram --path "/path/to/extracted/instagram_export" --output pdf --pdf-name instagram_moles.pdf
+python3 src/BE/main.py instagram --path "/path/to/extracted/instagram_export" --output pdf --file-name instagram_moles
+
+# 🔹 Excel Report: Save findings to a styled Excel (.xlsx) spreadsheet
+python3 src/BE/main.py instagram --path "/path/to/extracted/instagram_export" --output excel --file-name instagram_moles
 ```
 
 > 💡 **Export Path:** Provide the path to the unzipped export folder containing your `followers_*.json` and `following.json` files (see [How to Export Instagram Data](#-how-to-export-instagram-data) below).
@@ -188,8 +195,8 @@ python3 src/BE/main.py instagram --path "/path/to/extracted/instagram_export" --
 
 ```
 python3 src/BE/main.py [-h] [--username USERNAME] [--path PATH]
-                       [--github-token GITHUB_TOKEN] [--output {terminal,pdf}]
-                       [--pdf-name PDF_NAME]
+                       [--github-token GITHUB_TOKEN] [--output {terminal,pdf,excel}]
+                       [--file-name FILE_NAME]
                        {github,instagram}
 ```
 
@@ -199,8 +206,8 @@ python3 src/BE/main.py [-h] [--username USERNAME] [--path PATH]
 | `--username` | String | `None` | `github` | Target GitHub profile username. |
 | `--path` | String | `None` | `instagram` | File system path to the extracted Instagram JSON export folder. |
 | `--github-token` | String | `None` | *Optional* | GitHub Personal Access Token (PAT) to bypass 60 req/hr rate limit. |
-| `--output` | Choice | `terminal` | *Optional* | Output destination format: `terminal` or `pdf`. |
-| `--pdf-name` | String | `non_followers_report.pdf` | *Optional* | File name of the exported PDF when `--output pdf` is selected. |
+| `--output` | Choice | `terminal` | *Optional* | Output destination format: `terminal`, `pdf` or `excel`. |
+| `--file-name` | String | `non_followers_report` | *Optional* | Base name for the export file (exporters automatically append the correct extension). Alias: `--filename`. |
 
 
 ## 🕒 Historical Snapshot Ledger
@@ -246,6 +253,7 @@ To analyze your Instagram account safely without giving out credentials:
 - Key Libraries:
   - [`rich`](https://rich.readthedocs.io/): Terminal formatting, spinners, boxes, and styled tables.
   - [`reportlab`](https://www.reportlab.com/): PDF vector engine for publication-quality reports.
+  - [`openpyxl`](https://openpyxl.readthedocs.io/): Formatted Excel spreadsheet engine (.xlsx) with custom typography and hyperlinks.
 
 
 ## 📄 License
