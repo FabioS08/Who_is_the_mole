@@ -1,8 +1,10 @@
+from .utils import resolve_project_path
 from typing import List, Dict, Any
 from rich.console import Console
 from datetime import datetime
 from pathlib import Path
 import json
+
 
 console = Console()
 
@@ -32,10 +34,10 @@ class SnapshotManager:
          None
         '''
 
-        self.snapshots_dir = Path(dir)
+        self.snapshots_dir = resolve_project_path(dir)
         self.snapshots_dir.mkdir(parents = True, exist_ok = True)
         self.history_file = self.snapshots_dir / f"{platform_name}_{account_id}_history.json"
-        
+    
 
     def load_history(self) -> Dict[str, Any]:
 

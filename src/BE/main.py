@@ -1,8 +1,7 @@
-from platforms import InstagramExportChecker, GithubApiChecker, SocialMediaChecker
+from core.platforms import InstagramExportChecker, GithubApiChecker, SocialMediaChecker
+from core.exporters import export_to_terminal, export_to_pdf
+from core.snapshots_manager import SnapshotManager
 
-from exporters import export_to_terminal, export_to_pdf
-
-from snapshots_manager import SnapshotManager
 
 from rich.console import Console
 from rich.align import Align

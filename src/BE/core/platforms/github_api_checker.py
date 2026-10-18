@@ -1,5 +1,6 @@
 from .social_media_checker import SocialMediaChecker
 from typing import List, Dict, Any, Optional
+from ..utils import resolve_project_path
 from rich.console import Console
 from datetime import datetime
 from pathlib import Path
@@ -36,7 +37,7 @@ class GithubApiChecker(SocialMediaChecker):
         self.username = username
         self.token = token
         self.base_url = base_url 
-        self.checkpoint_dir = Path(checkpoint_dir)
+        self.checkpoint_dir = resolve_project_path(checkpoint_dir)
         self._followers_cache = None
         self._following_cache = None
 

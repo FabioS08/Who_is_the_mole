@@ -61,11 +61,19 @@ class SocialMediaChecker(ABC):
           The list of dictionaries containing users followed who do not follow back
         '''
 
-        followers = {f['username'].lower() for f in self.get_followers()}
+        followers = {f['username'].lower() for f in self.get_followers() if f and 'username' in f}
         non_followers = []
+        seen = set()
 
         for user in self.get_following():
-            if user['username'].lower() not in followers:
+
+            if not user or 'username' not in user:
+                continue
+            
+            u_lower = user['username'].lower()
+            
+            if u_lower not in followers and u_lower not in seen:
+                seen.add(u_lower)
                 non_followers.append(user)
 
         return non_followers
