@@ -41,3 +41,31 @@ def resolve_project_path(path: str | Path) -> Path:
         return get_project_root() / target
     
     return target
+
+
+def ensure_file_extension(filename: str | Path, extension: str) -> str:
+
+    '''
+    It ensures that a filename ends with the specified extension, appending it if absent.
+
+    Parameters
+    ----------
+     filename:str|Path
+      The input file path or base name
+
+     extension:str
+      The required file extension (with or without a leading dot, e.g. '.xlsx' or 'xlsx')
+
+    Outputs
+    -------
+     resolved_filename:str
+      The filename guaranteed to end with the specified extension
+    '''
+
+    ext = extension if extension.startswith(".") else f".{extension}"
+    target = str(filename)
+
+    if not target.endswith(ext):
+        return f"{target}{ext}"
+
+    return target

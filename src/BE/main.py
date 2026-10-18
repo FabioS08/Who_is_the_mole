@@ -1,5 +1,5 @@
 from core.platforms import InstagramExportChecker, GithubApiChecker, SocialMediaChecker
-from core.exporters import export_to_terminal, export_to_pdf
+from core.exporters import export_to_terminal, export_to_pdf, export_to_excel
 from core.snapshots_manager import SnapshotManager
 
 
@@ -35,8 +35,8 @@ def create_parser() -> argparse.ArgumentParser:
     parser.add_argument("--username", help = "Profile Username (required for github)")
     parser.add_argument("--path", help = "Path to the extracted data export (required for instagram)")
     parser.add_argument("--github-token", help = "Optional GitHub Personal Access Token to bypass rate limits")
-    parser.add_argument("--output", choices = ["terminal", "pdf"], default = "terminal", help = "Output format")
-    parser.add_argument("--pdf-name", default = "non_followers_report.pdf", help = "Name of the output PDF file")
+    parser.add_argument("--output", choices = ["terminal", "pdf", "excel"], default = "terminal", help = "Output format")
+    parser.add_argument("--file-name", "--filename", dest = "file_name", default = "non_followers_report", help = "Name of the output export file (without extension)")
     
     return parser
 
@@ -125,7 +125,7 @@ def init_checker(args: argparse.Namespace) -> tuple[SocialMediaChecker | None, s
 def export_results(args: argparse.Namespace, data: list[dict]) -> None:
 
     '''
-    It exports the non-followers report to the selected output format (terminal or PDF).
+    It exports the non-followers report to the selected output format (terminal, PDF or Excel).
 
     Parameters
     ----------
@@ -144,7 +144,10 @@ def export_results(args: argparse.Namespace, data: list[dict]) -> None:
         export_to_terminal(data)
 
     elif args.output == "pdf":
-        export_to_pdf(data, args.pdf_name)
+        export_to_pdf(data, args.file_name)
+
+    elif args.output == "excel":
+        export_to_excel(data, args.file_name)
 
 
 def main():

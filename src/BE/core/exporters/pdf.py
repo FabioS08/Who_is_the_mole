@@ -4,6 +4,8 @@ from reportlab.lib.styles import getSampleStyleSheet, StyleSheet1, ParagraphStyl
 from reportlab.lib.pagesizes import letter
 from reportlab.lib import colors
 
+from ..utils import ensure_file_extension
+
 from typing import List, Dict, Any
 
 from rich.console import Console
@@ -159,7 +161,7 @@ def _build_table(data: List[Dict], styles: StyleSheet1) -> Table:
     return table
 
 
-def export_to_pdf(data: List[Dict], filename: str = "non_followers_report.pdf") -> None:
+def export_to_pdf(data: List[Dict], filename: str = "non_followers_report") -> None:
 
     '''
     It generates a PDF report containing the non-followers list in a structured table.
@@ -170,12 +172,14 @@ def export_to_pdf(data: List[Dict], filename: str = "non_followers_report.pdf") 
       The list of dictionaries containing user details and unfollow dates
 
      filename:str
-      The output PDF file path or name (default: 'non_followers_report.pdf')
+      The output PDF file path or name (default: 'non_followers_report')
 
     Outputs
     -------
      None
     '''
+
+    filename = ensure_file_extension(filename, ".pdf")
 
     doc = SimpleDocTemplate(filename, pagesize = letter, leftMargin = MARGIN, rightMargin = MARGIN)
     styles = getSampleStyleSheet()
