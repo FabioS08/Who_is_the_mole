@@ -37,8 +37,9 @@ Whether you are auditing your developer network on GitHub or reviewing your pers
 4. [Usage & CLI Reference](#-usage--cli-reference)
 5. [Historical Snapshot Ledger](#-historical-snapshot-ledger)
 6. [How to Export Instagram Data](#-how-to-export-instagram-data)
-7. [Dependencies & Requirements](#-dependencies--requirements)
-8. [License](#-license)
+7. [Request a New Platform](#-request-a-new-platform)
+8. [Dependencies & Requirements](#-dependencies--requirements)
+9. [License](#-license)
 
 
 ## 🗼 Repository Structure
@@ -172,7 +173,9 @@ python3 src/BE/main.py github --username <github_username> --output pdf --file-n
 python3 src/BE/main.py github --username <github_username> --output excel --file-name github_moles
 ```
 
-> 💡 **Rate Limit Tip:** GitHub limits anonymous API calls to 60 requests/hour. If you follow more than 60 accounts, passing a free [GitHub Personal Access Token](https://github.com/settings/tokens) via `--github-token` is strongly recommended.
+> 💡 **Rate Limits & Automatic Checkpoint Recovery:**
+> - **Rate Limits:** GitHub limits unauthenticated API requests to **60 requests/hour** (up to 100 profiles per page request). Passing a free [GitHub Personal Access Token (PAT)](https://github.com/settings/tokens) via `--github-token` raises your quota to **5,000 requests/hour**.
+> - **Automatic Checkpoint Resuming:** If you hit GitHub's rate limit, **you don't lose any progress and don't need to start over, you simply have to wait!** The checker automatically saves all already-fetched accounts and the next page number to `snapshots/.checkpoints/`. Once GitHub's hourly quota window resets, re-run the exact same command: it will detect the checkpoint, restore all cached records and seamlessly resume fetching from the exact page where it stopped. Once the full list is successfully retrieved, the checkpoint file is automatically cleared.
 
 ### 2. 📸 Instagram Checker
 
@@ -245,6 +248,13 @@ To analyze your Instagram account safely without giving out credentials:
 6. **Important:** Under **Format**, choose **JSON** (*HTML format is not supported*).
 7. Submit the request. Meta will notify you when your archive is ready for download (usually 5–15 minutes).
 8. Unzip the downloaded `.zip` archive and pass the resulting folder path to `--path`.
+
+
+## 💡 Request a New Platform
+
+Interested in auditing another social network?
+
+We're always looking to expand platform support! Feel free to **[open an issue](https://github.com/FabioS08/Who_is_the_mole/issues/new)** requesting the platform you want, and you will see it added soon!
 
 
 ## 📦 Dependencies & Requirements
