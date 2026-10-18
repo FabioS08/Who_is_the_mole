@@ -1,43 +1,115 @@
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+from .styles.pdf import (MARGIN, CARD_SPACING, CARD_WIDTH, CARD_HEIGHT_VAL, CARD_HEIGHT_LBL, TABLE_COL_WIDTHS,
+                         SPACER_TITLE_SUBTITLE, SPACER_SUBTITLE_CARDS, SPACER_CARDS_TABLE, COLOR_BLUE, COLOR_GREEN, COLOR_RED,
+                         COLOR_AMBER, REPORT_TITLE, TABLE_HEADERS, STYLE_TITLE, STYLE_SUBTITLE, STYLE_HEADER, STYLE_HEADER_CENTER,
+                         STYLE_CELL, STYLE_CELL_CENTER, STYLE_URL, TABLE_STYLE_CARD, TABLE_STYLE_CARDS_ROW,
+                         get_card_val_style, get_card_lbl_style, get_table_style)
 
-from reportlab.lib.styles import getSampleStyleSheet, StyleSheet1, ParagraphStyle
+from reportlab.platypus import SimpleDocTemplate, Table, Paragraph, Spacer
 from reportlab.lib.pagesizes import letter
-from reportlab.lib import colors
 
-from ..utils import ensure_file_extension
-
-from typing import List, Dict, Any
-
+from ..utils import ensure_file_extension, create_default_stats, is_web_url
+from typing import List, Dict, Any, Optional
 from rich.console import Console
+from datetime import datetime
+
 
 
 console = Console()
 
 
-PAGE_WIDTH, _ = letter
-MARGIN = 72
-PRINTABLE_WIDTH = PAGE_WIDTH - (2 * MARGIN)
-
-COL_WIDTH_USERNAME = PRINTABLE_WIDTH * 0.28
-COL_WIDTH_URL = PRINTABLE_WIDTH * 0.47
-COL_WIDTH_DATE = PRINTABLE_WIDTH * 0.25
-
-SPACER_WIDTH = 1
-SPACER_HEIGHT = 20
-
-
-def _build_header(total_count: int, styles: StyleSheet1) -> List[Any]:
+def _make_metric_card(value: Any, label: str, color_hex: str, width: float) -> Table:
 
     '''
-    It constructs the header flowable elements (title, count summary, and vertical spacing).
+    It constructs an individual metric card with a large colored numeric value,
+    a subtle label underneath, rounded corners, and a light gray border.
 
     Parameters
     ----------
-     total_count:int
-      The total number of detected non-followers
+     value:Any
+      The numeric or string metric count to display
+     
+     label:str
+      The label for the card (e.g. 'Following', 'Followers')
+     
+     color_hex:str
+      The hex color code for the numeric value font
+     
+     width:float
+      The exact column width allocated for this card
 
-     styles:StyleSheet1
-      The ReportLab sample stylesheet collection
+    Outputs
+    -------
+     card:Table
+      The styled ReportLab Table card flowable
+    '''
+
+    val_style = get_card_val_style(label, color_hex)
+    lbl_style = get_card_lbl_style(label)
+
+    card = Table(
+                    data = [[Paragraph(str(value), val_style)], [Paragraph(label, lbl_style)]],
+                    colWidths = [width],
+                    rowHeights = [CARD_HEIGHT_VAL, CARD_HEIGHT_LBL]
+                )
+    card.setStyle(TABLE_STYLE_CARD)
+
+    return card
+
+
+def _build_cards_row(stats: Dict[str, Any], total_non_followers: int) -> Table:
+
+    '''
+    It constructs the horizontal 4-card KPI summary row (Following, Followers,
+    Non-Followers, New Unfollowers).
+
+    Parameters
+    ----------
+     stats:Dict[str, Any]
+      Summary statistics dictionary containing account metrics
+     
+     total_non_followers:int
+      Fallback count for non-followers if not present in stats
+
+    Outputs
+    -------
+     cards_table:Table
+      The styled ReportLab Table containing the 4 cards side by side
+    '''
+
+    following_val = stats.get('following', 'N/A')
+    followers_val = stats.get('followers', 'N/A')
+    non_followers_val = stats.get('non_followers', total_non_followers)
+    new_unfollowers_val = stats.get('new_unfollowers', 0)
+
+    cards = [
+                _make_metric_card(following_val, 'Following', COLOR_BLUE, CARD_WIDTH),
+                '',
+                _make_metric_card(followers_val, 'Followers', COLOR_GREEN, CARD_WIDTH),
+                '',
+                _make_metric_card(non_followers_val, 'Non-Followers', COLOR_RED, CARD_WIDTH),
+                '',
+                _make_metric_card(new_unfollowers_val, 'New Unfollowers', COLOR_AMBER, CARD_WIDTH)
+            ]
+
+    col_widths = [CARD_WIDTH, CARD_SPACING, CARD_WIDTH, CARD_SPACING, CARD_WIDTH, CARD_SPACING, CARD_WIDTH]
+    cards_table = Table([cards], colWidths = col_widths)
+    cards_table.setStyle(TABLE_STYLE_CARDS_ROW)
+
+    return cards_table
+
+
+def _build_header(stats: Dict[str, Any], total_non_followers: int) -> List[Any]:
+
+    '''
+    It constructs the header flowable elements (title, generated timestamp, and 4 KPI cards).
+
+    Parameters
+    ----------
+     stats:Dict[str, Any]
+      Summary statistics dictionary containing account metrics
+     
+     total_non_followers:int
+      The total number of detected non-followers
 
     Outputs
     -------
@@ -45,97 +117,106 @@ def _build_header(total_count: int, styles: StyleSheet1) -> List[Any]:
       The list of flowable header elements
     '''
 
+    generated_date = stats.get('last_checked') or stats.get('generated') or datetime.now().strftime("%m/%d/%Y, %I:%M:%S %p")
+    cards_row = _build_cards_row(stats, total_non_followers)
+
     return [
-                Paragraph("Non-Followers Report", styles['Title']), 
-                Spacer(SPACER_WIDTH, SPACER_HEIGHT),
-                
-                Paragraph(f'<font color="red"><b>Total Non-Followers: {total_count}</b></font>', styles['Normal']), 
-                Spacer(SPACER_WIDTH, SPACER_HEIGHT)
+                Paragraph(REPORT_TITLE, STYLE_TITLE),
+                Spacer(1, SPACER_TITLE_SUBTITLE),
+                Paragraph(f"Generated: {generated_date}", STYLE_SUBTITLE),
+                Spacer(1, SPACER_SUBTITLE_CARDS),
+                cards_row,
+                Spacer(1, SPACER_CARDS_TABLE)
             ]
 
 
-def _build_table_style(num_rows: int) -> TableStyle:
+def _build_table_headers() -> List[Paragraph]:
 
     '''
-    It constructs and returns the TableStyle configuration with centered header titles,
-    an elegant slate palette, subtle borders, and alternating row backgrounds.
+    It constructs the header row for the non-followers table with styled column titles.
 
     Parameters
     ----------
-     num_rows:int
-      The total number of rows in the table (including the header row)
+     None
 
     Outputs
     -------
-     TableStyle
-      The configured TableStyle instance
+     headers:List[Paragraph]
+      The list of styled header cell paragraphs
     '''
 
-    style_commands = [
-                        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1E293B')),
-                        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
-                        ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
-                        ('VALIGN', (0, 0), (-1, 0), 'MIDDLE'),
-                        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                        ('FONTSIZE', (0, 0), (-1, 0), 10),
-                        ('TOPPADDING', (0, 0), (-1, 0), 9),
-                        ('BOTTOMPADDING', (0, 0), (-1, 0), 9),
-
-                        ('ALIGN', (0, 1), (-1, -1), 'LEFT'),
-                        ('VALIGN', (0, 1), (-1, -1), 'MIDDLE'),
-                        ('TOPPADDING', (0, 1), (-1, -1), 7),
-                        ('BOTTOMPADDING', (0, 1), (-1, -1), 7),
-                        ('LEFTPADDING', (0, 0), (-1, -1), 8),
-                        ('RIGHTPADDING', (0, 0), (-1, -1), 8),
-
-                        ('INNERGRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#CBD5E1')),
-                        ('BOX', (0, 0), (-1, -1), 1, colors.HexColor('#94A3B8')),
-                    ]
-
-    for i in range(1, num_rows):
-
-        bg_color = colors.HexColor('#FFFFFF') if i % 2 == 1 else colors.HexColor('#F8FAFC')
-        style_commands.append(('BACKGROUND', (0, i), (-1, i), bg_color))
+    return [
+                Paragraph(TABLE_HEADERS[0], STYLE_HEADER_CENTER),
+                Paragraph(TABLE_HEADERS[1], STYLE_HEADER),
+                Paragraph(TABLE_HEADERS[2], STYLE_HEADER),
+                Paragraph(TABLE_HEADERS[3], STYLE_HEADER_CENTER)
+            ]
 
 
-    return TableStyle(style_commands)
-
-
-def _build_cell_styles(styles: StyleSheet1) -> tuple[ParagraphStyle, ParagraphStyle]:
+def _format_url_cell(raw_url: str) -> Paragraph:
 
     '''
-    It constructs and returns the ParagraphStyle objects for regular table cells and date cells.
+    It creates a styled ReportLab paragraph for the profile URL, converting web URLs
+    into clickable hyperlinks.
 
     Parameters
     ----------
-     styles:StyleSheet1
-      The ReportLab sample stylesheet collection
+     raw_url:str
+      The profile URL address
 
     Outputs
     -------
-     tuple[ParagraphStyle, ParagraphStyle]
-      A tuple containing (cell_style, date_style)
+     paragraph:Paragraph
+      The styled URL cell paragraph
     '''
 
-    cell_style = ParagraphStyle('ElegantCell', parent = styles['Normal'], fontName = 'Helvetica', fontSize = 9.5, leading = 13,
-                                textColor = colors.HexColor('#334155'))
-    date_style = ParagraphStyle('ElegantDate', parent = cell_style, alignment = 1, textColor = colors.HexColor('#64748B'))
+    if is_web_url(raw_url):
+        return Paragraph(f'<link href="{raw_url}">{raw_url}</link>', STYLE_URL)
 
-    return cell_style, date_style
+    return Paragraph(raw_url, STYLE_CELL)
 
 
-def _build_table(data: List[Dict], styles: StyleSheet1) -> Table:
+def _build_table_row(idx: int, item: Dict[str, Any]) -> List[Paragraph]:
 
     '''
-    It converts the non-followers data into a formatted and styled ReportLab Table.
+    It formats and constructs a single row of cells for a non-follower entry.
+
+    Parameters
+    ----------
+     idx:int
+      The 1-based index number of the row
+     
+     item:Dict[str, Any]
+      Dictionary containing user details (username, url, unfollow_date)
+
+    Outputs
+    -------
+     row:List[Paragraph]
+      The list of 4 styled flowable cell elements
+    '''
+
+    username = str(item.get('username', 'N/A'))
+    raw_url = str(item.get('url', 'N/A'))
+    unfollow_date = str(item.get('unfollow_date', 'N/A'))
+
+    return [
+                Paragraph(str(idx), STYLE_CELL_CENTER),
+                Paragraph(username, STYLE_CELL),
+                _format_url_cell(raw_url),
+                Paragraph(unfollow_date, STYLE_CELL_CENTER)
+            ]
+
+
+def _build_table(data: List[Dict]) -> Table:
+
+    '''
+    It converts the non-followers data into a formatted ReportLab Table with 4 columns
+    (#, Username, Profile URL, Unfollow Date), light borders, and rounded corners.
 
     Parameters
     ----------
      data:List[Dict]
       The list of dictionaries containing user details and unfollow dates
-
-     styles:StyleSheet1
-      The ReportLab sample stylesheet collection
 
     Outputs
     -------
@@ -143,25 +224,18 @@ def _build_table(data: List[Dict], styles: StyleSheet1) -> Table:
       The styled ReportLab Table flowable element
     '''
 
-    cell_style, date_style = _build_cell_styles(styles)
+    table_rows: List[List[Any]] = [_build_table_headers()]
 
-    table_data: List[List[Any]] = [["Username", "Profile URL", "Unfollow Date"]]
+    for idx, item in enumerate(data, start = 1):
+        table_rows.append(_build_table_row(idx, item))
 
-    for item in data:
-
-        table_data.append([
-                                    Paragraph(str(item.get('username', 'N/A')), cell_style),
-                                    Paragraph(str(item.get('url', 'N/A')), cell_style),
-                                    Paragraph(str(item.get('unfollow_date', 'N/A')), date_style)
-                                ])
-
-    table = Table(data = table_data, colWidths = [COL_WIDTH_USERNAME, COL_WIDTH_URL, COL_WIDTH_DATE], hAlign = 'LEFT')
-    table.setStyle(_build_table_style(len(table_data)))
+    table = Table(table_rows, colWidths = TABLE_COL_WIDTHS, repeatRows = 1)
+    table.setStyle(get_table_style(bool(data)))
 
     return table
 
 
-def export_to_pdf(data: List[Dict], filename: str = "non_followers_report") -> None:
+def export_to_pdf(data: List[Dict], filename: str = "non_followers_report", stats: Optional[Dict[str, Any]] = None) -> None:
 
     '''
     It generates a PDF report containing the non-followers list in a structured table.
@@ -174,6 +248,9 @@ def export_to_pdf(data: List[Dict], filename: str = "non_followers_report") -> N
      filename:str
       The output PDF file path or name (default: 'non_followers_report')
 
+     stats:Optional[Dict[str, Any]]
+      Summary statistics dictionary containing following, followers, non_followers, new_unfollowers counts
+
     Outputs
     -------
      None
@@ -181,10 +258,19 @@ def export_to_pdf(data: List[Dict], filename: str = "non_followers_report") -> N
 
     filename = ensure_file_extension(filename, ".pdf")
 
-    doc = SimpleDocTemplate(filename, pagesize = letter, leftMargin = MARGIN, rightMargin = MARGIN)
-    styles = getSampleStyleSheet()
+    if stats is None:
+        stats = create_default_stats(data)
 
-    elements = [*_build_header(len(data), styles), _build_table(data, styles)]
+    doc = SimpleDocTemplate(
+                                filename,
+                                pagesize = letter,
+                                leftMargin = MARGIN,
+                                rightMargin = MARGIN,
+                                topMargin = 40,
+                                bottomMargin = 40
+                            )
+
+    elements = [*_build_header(stats, len(data)), _build_table(data)]
 
     doc.build(elements)
     console.print(f"[bold green]✓[/] Report successfully saved to [cyan]{filename}[/cyan]")

@@ -37,6 +37,7 @@ class SnapshotManager:
         self.snapshots_dir = resolve_project_path(dir)
         self.snapshots_dir.mkdir(parents = True, exist_ok = True)
         self.history_file = self.snapshots_dir / f"{platform_name}_{account_id}_history.json"
+        self.new_unfollowers_count = 0
     
 
     def load_history(self) -> Dict[str, Any]:
@@ -169,12 +170,14 @@ class SnapshotManager:
         current_followers_set = {f['username'] for f in current_followers}
 
         if not previous_followers:
+            self.new_unfollowers_count = 0
             console.print("[dim]First snapshot recorded for this account. Future checks will track unfollow dates.[/dim]")
 
         else:
 
             current_lower = {u.lower() for u in current_followers_set}
             new_unfollowers = [u for u in previous_followers if u.lower() not in current_lower and u not in unfollow_dates]
+            self.new_unfollowers_count = len(new_unfollowers)
 
             if new_unfollowers:
                 console.print(f"[bold yellow]⚠️  Detected [bold]{len(new_unfollowers)}[/bold] new unfollower(s) since last check![/bold yellow]")

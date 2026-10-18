@@ -1,7 +1,9 @@
 from core.platforms import InstagramExportChecker, GithubApiChecker, SocialMediaChecker
 from core.exporters import export_to_terminal, export_to_pdf, export_to_excel
 from core.snapshots_manager import SnapshotManager
+from core.utils import create_stats
 
+from typing import Optional, Dict, Any
 
 from rich.console import Console
 from rich.align import Align
@@ -122,7 +124,8 @@ def init_checker(args: argparse.Namespace) -> tuple[SocialMediaChecker | None, s
     return None, None
 
 
-def export_results(args: argparse.Namespace, data: list[dict]) -> None:
+
+def export_results(args: argparse.Namespace, data: list[dict], stats: Optional[Dict[str, Any]] = None) -> None:
 
     '''
     It exports the non-followers report to the selected output format (terminal, PDF or Excel).
@@ -135,6 +138,9 @@ def export_results(args: argparse.Namespace, data: list[dict]) -> None:
      data:list[dict]
       The enriched list of non-followers to export
 
+     stats:Optional[Dict[str, Any]]
+      Summary statistics dictionary containing following, followers, non_followers, new_unfollowers counts
+
     Outputs
     -------
      None
@@ -144,10 +150,10 @@ def export_results(args: argparse.Namespace, data: list[dict]) -> None:
         export_to_terminal(data)
 
     elif args.output == "pdf":
-        export_to_pdf(data, args.file_name)
+        export_to_pdf(data, args.file_name, stats = stats)
 
     elif args.output == "excel":
-        export_to_excel(data, args.file_name)
+        export_to_excel(data, args.file_name, stats = stats)
 
 
 def main():
@@ -165,7 +171,9 @@ def main():
     try:
 
         with console.status("[bold green]Analyzing followers & following data...", spinner = "dots"):
+            
             followers = checker.get_followers()
+            following = checker.get_following()
             non_followers = checker.get_non_followers()
    
     except Exception as e:
@@ -176,8 +184,9 @@ def main():
     # Process snapshots to add 'unfollow_date'
     snapshot_manager = SnapshotManager(args.platform, account_id)
     enriched_non_followers = snapshot_manager.process(followers, non_followers)
+    stats = create_stats(following, followers, enriched_non_followers, snapshot_manager)
 
-    export_results(args, enriched_non_followers)
+    export_results(args, enriched_non_followers, stats = stats)
 
 
 if __name__ == "__main__":

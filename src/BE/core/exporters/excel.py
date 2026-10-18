@@ -1,114 +1,156 @@
-from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
-from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.worksheet import Worksheet
+from openpyxl.styles import Font, PatternFill
+from openpyxl.utils import get_column_letter
 from openpyxl import Workbook
 
-from ..utils import ensure_file_extension
-
+from ..utils import ensure_file_extension, create_default_stats, is_web_url
+from typing import List, Dict, Any, Optional
 from rich.console import Console
-
-from typing import List, Dict
+from datetime import datetime
+from .styles.excel import *
 
 
 console = Console()
 
 
-# Palette
-COLOR_SLATE_DARK = "1E293B"
-COLOR_SLATE_LIGHT = "F8FAFC"
-COLOR_WHITE = "FFFFFF"
-COLOR_BORDER = "CBD5E1"
-COLOR_TEXT_PRIMARY = "334155"
-COLOR_TEXT_SECONDARY = "64748B"
-COLOR_LINK = "2563EB"
-COLOR_ALERT = "DC2626"
-
-# Layout & Dimensions
-ROW_INDEX_TITLE = 1
-ROW_INDEX_COUNT = 2
-ROW_INDEX_SPACER = 3
-ROW_INDEX_HEADER = 4
-
-ROW_HEIGHT_TITLE = 28
-ROW_HEIGHT_COUNT = 20
-ROW_HEIGHT_SPACER = 12
-ROW_HEIGHT_HEADER = 26
-ROW_HEIGHT_DATA = 20
-
-COL_WIDTH_USERNAME = 25
-COL_WIDTH_URL = 45
-COL_WIDTH_DATE = 22
-
-COL_WIDTHS = {
-                1: COL_WIDTH_USERNAME,
-                2: COL_WIDTH_URL,
-                3: COL_WIDTH_DATE
-            }
-
-# Content & Labels
-REPORT_TITLE = "Non-Followers Report"
-DEFAULT_SHEET_TITLE = "Non-Followers"
-DEFAULT_REPORT_FILENAME = "non_followers_report"
-TABLE_HEADERS = ["Username", "Profile URL", "Unfollow Date"]
-
-# Typography & Fonts
-FONT_FAMILY = "Calibri"
-
-FONT_TITLE = Font(name = FONT_FAMILY, size = 16, bold = True, color = COLOR_SLATE_DARK)
-FONT_COUNT = Font(name = FONT_FAMILY, size = 11, bold = True, color = COLOR_ALERT)
-HEADER_FONT = Font(name = FONT_FAMILY, size = 11, bold = True, color = COLOR_WHITE)
-FONT_USERNAME = Font(name = FONT_FAMILY, size = 10, bold = True, color = COLOR_TEXT_PRIMARY)
-FONT_URL = Font(name = FONT_FAMILY, size = 10, color = COLOR_LINK, underline = "single")
-FONT_URL_DEFAULT = Font(name = FONT_FAMILY, size = 10, color = COLOR_TEXT_PRIMARY)
-FONT_DATE = Font(name = FONT_FAMILY, size = 10, color = COLOR_TEXT_SECONDARY)
-
-# Styles
-HEADER_FILL = PatternFill(start_color = COLOR_SLATE_DARK, end_color = COLOR_SLATE_DARK, fill_type = "solid")
-ROW_BG_WHITE = PatternFill(start_color = COLOR_WHITE, end_color = COLOR_WHITE, fill_type = "solid")
-ROW_BG_LIGHT = PatternFill(start_color = COLOR_SLATE_LIGHT, end_color = COLOR_SLATE_LIGHT, fill_type = "solid")
-
-BORDER_THIN = Border(
-                        left = Side(style = 'thin', color = COLOR_BORDER),
-                        right = Side(style = 'thin', color = COLOR_BORDER),
-                        top = Side(style = 'thin', color = COLOR_BORDER),
-                        bottom = Side(style = 'thin', color = COLOR_BORDER)
-                    )
-
-ALIGN_CENTER = Alignment(horizontal = "center", vertical = "center", wrap_text = True)
-ALIGN_LEFT = Alignment(horizontal = "left", vertical = "center", wrap_text = True)
-ALIGN_BANNER = Alignment(horizontal = "left", vertical = "center", wrap_text = False)
-
-
-def _build_header(ws: Worksheet, total_count: int) -> int:
+def _render_title_banner(ws: Worksheet, generated_date: str) -> None:
 
     '''
-    It sets up the title banner and total count summary rows in the worksheet.
+    It renders the main report title, generation timestamp subtitle and spacing in the worksheet.
 
     Parameters
     ----------
      ws:Worksheet
       The active openpyxl worksheet
 
-     total_count:int
-      The total number of detected non-followers
+     generated_date:str
+      The formatted timestamp string when the report was generated
 
     Outputs
     -------
-     next_row:int
-      The starting row index for the table headers
+     None
     '''
 
+    # Row 1: Title
     ws.row_dimensions[ROW_INDEX_TITLE].height = ROW_HEIGHT_TITLE
     cell_title = ws.cell(row = ROW_INDEX_TITLE, column = 1, value = REPORT_TITLE)
     cell_title.font = FONT_TITLE
     cell_title.alignment = ALIGN_BANNER
 
-    ws.row_dimensions[ROW_INDEX_COUNT].height = ROW_HEIGHT_COUNT
-    cell_count = ws.cell(row = ROW_INDEX_COUNT, column = 1, value = f"Total Non-Followers: {total_count}")
-    cell_count.font = FONT_COUNT
-    cell_count.alignment = ALIGN_BANNER
+    # Row 2: Subtitle
+    ws.row_dimensions[ROW_INDEX_SUBTITLE].height = ROW_HEIGHT_SUBTITLE
+    cell_sub = ws.cell(row = ROW_INDEX_SUBTITLE, column = 1, value = f"Generated: {generated_date}")
+    cell_sub.font = FONT_SUBTITLE
+    cell_sub.alignment = ALIGN_BANNER
 
-    ws.row_dimensions[ROW_INDEX_SPACER].height = ROW_HEIGHT_SPACER
+    # Row 3: Spacer
+    ws.row_dimensions[ROW_INDEX_SPACER_1].height = ROW_HEIGHT_SPACER_1
+
+
+def _render_kpi_card(ws: Worksheet, col_idx: int, val: str, label: str, col_color: str) -> None:
+
+    '''
+    It renders an individual 2-row KPI card with numeric value and descriptive label.
+
+    Parameters
+    ----------
+     ws:Worksheet
+      The active openpyxl worksheet
+
+     col_idx:int
+      The 1-based column index where the card should be rendered
+
+     val:str
+      The numeric or string metric value to display
+
+     label:str
+      The descriptive label for the card (e.g. 'Following', 'Followers')
+
+     col_color:str
+      The hex color code for the numeric value font
+
+    Outputs
+    -------
+     None
+    '''
+
+    c_val = ws.cell(row = ROW_INDEX_CARD_VAL, column = col_idx, value = val)
+    c_val.font = Font(name = FONT_FAMILY, size = 18, bold = True, color = col_color)
+    c_val.alignment = ALIGN_CENTER
+    c_val.border = BORDER_CARD_TOP
+    c_val.fill = FILL_WHITE
+
+    c_lbl = ws.cell(row = ROW_INDEX_CARD_LBL, column = col_idx, value = label)
+    c_lbl.font = FONT_CARD_LABEL
+    c_lbl.alignment = ALIGN_CENTER
+    c_lbl.border = BORDER_CARD_BOTTOM
+    c_lbl.fill = FILL_WHITE
+
+
+def _render_kpi_cards(ws: Worksheet, stats: Dict[str, Any], total_non_followers: int) -> None:
+
+    '''
+    It constructs the 4 KPI metric cards row (Following, Followers, Non-Followers, New Unfollowers).
+
+    Parameters
+    ----------
+     ws:Worksheet
+      The active openpyxl worksheet
+
+     stats:Dict[str, Any]
+      Summary statistics dictionary containing account metrics
+
+     total_non_followers:int
+      Fallback count for non-followers if not present in stats
+
+    Outputs
+    -------
+     None
+    '''
+
+    card_configs = [
+                        (1, str(stats.get('following', 'N/A')), 'Following', COLOR_CARD_FOLLOWING),
+                        (2, str(stats.get('followers', 'N/A')), 'Followers', COLOR_CARD_FOLLOWERS),
+                        (3, str(stats.get('non_followers', total_non_followers)), 'Non-Followers', COLOR_CARD_NON_FOLLOWERS),
+                        (4, str(stats.get('new_unfollowers', 0)), 'New Unfollowers', COLOR_CARD_NEW_UNFOLLOWERS),
+                    ]
+
+    ws.row_dimensions[ROW_INDEX_CARD_VAL].height = ROW_HEIGHT_CARD_VAL
+    ws.row_dimensions[ROW_INDEX_CARD_LBL].height = ROW_HEIGHT_CARD_LBL
+
+    for col_idx, val, label, col_color in card_configs:
+        _render_kpi_card(ws, col_idx, val, label, col_color)
+
+
+def _build_header_section(ws: Worksheet, stats: Dict[str, Any], total_non_followers: int) -> int:
+
+    '''
+    It renders the title, generated timestamp, and 4 KPI cards in the worksheet.
+
+    Parameters
+    ----------
+     ws:Worksheet
+      The active openpyxl worksheet
+     
+     stats:Dict[str, Any]
+      Summary statistics dictionary containing account metrics
+     
+     total_non_followers:int
+      The total number of detected non-followers
+
+    Outputs
+    -------
+     next_row:int
+      The starting row index for table headers
+    '''
+
+    generated_date = stats.get('last_checked') or stats.get('generated') or datetime.now().strftime("%m/%d/%Y, %I:%M:%S %p")
+
+    _render_title_banner(ws, generated_date)
+    _render_kpi_cards(ws, stats, total_non_followers)
+
+    # Row 6: Spacer
+    ws.row_dimensions[ROW_INDEX_SPACER_2].height = ROW_HEIGHT_SPACER_2
 
     return ROW_INDEX_HEADER
 
@@ -136,16 +178,47 @@ def _build_table_headers(ws: Worksheet, row: int) -> None:
     for col_idx, header_text in enumerate(TABLE_HEADERS, start = 1):
 
         cell = ws.cell(row = row, column = col_idx, value = header_text)
-        cell.font = HEADER_FONT
-        cell.fill = HEADER_FILL
-        cell.alignment = ALIGN_CENTER
-        cell.border = BORDER_THIN
+        cell.font = FONT_HEADER
+        cell.fill = FILL_HEADER
+        cell.alignment = ALIGN_CENTER if col_idx in (1, 4) else ALIGN_LEFT
+        cell.border = BORDER_HEADER
+
+
+def _render_index_cell(ws: Worksheet, row: int, idx: int, fill: PatternFill) -> None:
+
+    '''
+    It creates and formats the index sequence cell with centered alignment and subtle text color.
+
+    Parameters
+    ----------
+     ws:Worksheet
+      The active openpyxl worksheet
+
+     row:int
+      The row index where the cell should be placed
+
+     idx:int
+      The 1-based index number of the row
+
+     fill:PatternFill
+      The background fill pattern for alternating rows
+
+    Outputs
+    -------
+     None
+    '''
+
+    cell = ws.cell(row = row, column = 1, value = idx)
+    cell.font = FONT_INDEX
+    cell.alignment = ALIGN_CENTER
+    cell.fill = fill
+    cell.border = BORDER_DATA_CELL
 
 
 def _render_username_cell(ws: Worksheet, row: int, username: str, fill: PatternFill) -> None:
 
     '''
-    It creates and formats the username cell with bold slate styling and thin border.
+    It creates and formats the username cell with left alignment and primary text color.
 
     Parameters
     ----------
@@ -166,11 +239,11 @@ def _render_username_cell(ws: Worksheet, row: int, username: str, fill: PatternF
      None
     '''
 
-    cell = ws.cell(row = row, column = 1, value = username)
+    cell = ws.cell(row = row, column = 2, value = username)
     cell.font = FONT_USERNAME
     cell.alignment = ALIGN_LEFT
     cell.fill = fill
-    cell.border = BORDER_THIN
+    cell.border = BORDER_DATA_CELL
 
 
 def _render_url_cell(ws: Worksheet, row: int, url: str, fill: PatternFill) -> None:
@@ -197,15 +270,15 @@ def _render_url_cell(ws: Worksheet, row: int, url: str, fill: PatternFill) -> No
      None
     '''
 
-    cell = ws.cell(row = row, column = 2, value = url)
+    cell = ws.cell(row = row, column = 3, value = url)
     cell.alignment = ALIGN_LEFT
     cell.fill = fill
-    cell.border = BORDER_THIN
+    cell.border = BORDER_DATA_CELL
 
-    if url and (str(url).startswith("http://") or str(url).startswith("https://")):
+    if is_web_url(url):
         cell.hyperlink = url
         cell.font = FONT_URL
-
+        
     else:
         cell.font = FONT_URL_DEFAULT
 
@@ -213,7 +286,7 @@ def _render_url_cell(ws: Worksheet, row: int, url: str, fill: PatternFill) -> No
 def _render_date_cell(ws: Worksheet, row: int, date_str: str, fill: PatternFill) -> None:
 
     '''
-    It creates and formats the unfollow date cell with centered alignment and subtle text color.
+    It creates and formats the unfollow date cell with centered alignment and secondary text color.
 
     Parameters
     ----------
@@ -234,17 +307,17 @@ def _render_date_cell(ws: Worksheet, row: int, date_str: str, fill: PatternFill)
      None
     '''
 
-    cell = ws.cell(row = row, column = 3, value = date_str)
+    cell = ws.cell(row = row, column = 4, value = date_str)
     cell.font = FONT_DATE
     cell.alignment = ALIGN_CENTER
     cell.fill = fill
-    cell.border = BORDER_THIN
+    cell.border = BORDER_DATA_CELL
 
 
-def _populate_row(ws: Worksheet, row: int, item: Dict, is_even: bool) -> None:
+def _render_row(ws: Worksheet, row: int, idx: int, item: Dict, fill: PatternFill) -> None:
 
     '''
-    It formats and populates a single data row with username, profile URL and unfollow date.
+    It formats and populates a single data row with index number, username, profile URL and unfollow date.
 
     Parameters
     ----------
@@ -254,11 +327,14 @@ def _populate_row(ws: Worksheet, row: int, item: Dict, is_even: bool) -> None:
      row:int
       The row number to populate
 
+     idx:int
+      The 1-based index number of the row
+
      item:Dict
       The dictionary containing non-follower user details
 
-     is_even:bool
-      Whether the current row index is even, for alternating background selection
+     fill:PatternFill
+      The background fill pattern for alternating rows
 
     Outputs
     -------
@@ -266,11 +342,11 @@ def _populate_row(ws: Worksheet, row: int, item: Dict, is_even: bool) -> None:
     '''
 
     ws.row_dimensions[row].height = ROW_HEIGHT_DATA
-    row_fill = ROW_BG_LIGHT if is_even else ROW_BG_WHITE
 
-    _render_username_cell(ws, row, item.get('username', 'N/A'), row_fill)
-    _render_url_cell(ws, row, item.get('url', 'N/A'), row_fill)
-    _render_date_cell(ws, row, item.get('unfollow_date', 'N/A'), row_fill)
+    _render_index_cell(ws, row, idx, fill)
+    _render_username_cell(ws, row, item.get('username', 'N/A'), fill)
+    _render_url_cell(ws, row, item.get('url', 'N/A'), fill)
+    _render_date_cell(ws, row, item.get('unfollow_date', 'N/A'), fill)
 
 
 def _populate_data_rows(ws: Worksheet, data: List[Dict], start_row: int) -> None:
@@ -294,10 +370,11 @@ def _populate_data_rows(ws: Worksheet, data: List[Dict], start_row: int) -> None
      None
     '''
 
-    for idx, item in enumerate(data):
-        
-        current_row = start_row + idx
-        _populate_row(ws, current_row, item, is_even = (idx % 2 == 1))
+    for idx, item in enumerate(data, start = 1):
+
+        current_row = start_row + idx - 1
+        row_fill = FILL_LIGHT if (idx % 2 == 0) else FILL_WHITE
+        _render_row(ws, current_row, idx, item, row_fill)
 
 
 def _apply_column_widths(ws: Worksheet) -> None:
@@ -354,10 +431,11 @@ def _setup_workbook(title: str = DEFAULT_SHEET_TITLE) -> tuple[Workbook, Workshe
     return wb, ws
 
 
-def export_to_excel(data: List[Dict], filename: str = DEFAULT_REPORT_FILENAME) -> None:
+def export_to_excel(data: List[Dict], filename: str = DEFAULT_REPORT_FILENAME, stats: Optional[Dict[str, Any]] = None) -> None:
 
     '''
-    It generates an Excel spreadsheet report containing the non-followers list in a styled table.
+    It generates an Excel spreadsheet report styled to match the GUI dashboard with KPI metric cards
+    and a structured 4-column table.
 
     Parameters
     ----------
@@ -367,6 +445,9 @@ def export_to_excel(data: List[Dict], filename: str = DEFAULT_REPORT_FILENAME) -
      filename:str
       The output Excel file path or name (default: 'non_followers_report')
 
+     stats:Optional[Dict[str, Any]]
+      Summary statistics dictionary containing following, followers, non_followers, new_unfollowers counts
+
     Outputs
     -------
      None
@@ -374,9 +455,12 @@ def export_to_excel(data: List[Dict], filename: str = DEFAULT_REPORT_FILENAME) -
 
     filename = ensure_file_extension(filename, ".xlsx")
 
+    if stats is None:
+        stats = create_default_stats(data)
+
     wb, ws = _setup_workbook(DEFAULT_SHEET_TITLE)
 
-    header_row = _build_header(ws, len(data))
+    header_row = _build_header_section(ws, stats, len(data))
     _build_table_headers(ws, header_row)
     _populate_data_rows(ws, data, header_row + 1)
     _apply_column_widths(ws)
